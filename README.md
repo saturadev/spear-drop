@@ -1,5 +1,7 @@
 # Spear Drop
 
+**[▶ Play in browser](https://saturaspace.com/play/spear/)**
+
 A first-person spear-throwing range: throw in slow motion, hit the test dummies, watch them go limp.
 
 ![Gameplay](media/gameplay.gif)
