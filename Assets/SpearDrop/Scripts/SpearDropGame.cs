@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using GameTouch;
 
 // Spear Drop: a first-person spear-throwing range. Drop all five test dummies with eight spears.
 // The bootstrap builds the whole map at runtime, runs the slow motion and keeps score.
@@ -24,6 +25,7 @@ public class SpearDropGame : MonoBehaviour
     ParticleSystem puffPrefab, dustPrefab;
     Spear tracked;
     bool resolving;
+    TouchPad touch;
 
     void Awake()
     {
@@ -33,6 +35,10 @@ public class SpearDropGame : MonoBehaviour
         player = SpearThrower.Build(new Vector3(0, 0, 0), 0f);
         player.onThrow = OnThrow;
         hud = SpearHud.Build();
+        // phones: stick on the left to walk, drag elsewhere to look, hold THROW to pull back and release to throw
+        touch = TouchPad.Create(SpearKit.Heavy, SpearKit.HeavyOutline);
+        touch.AddStick(new Rect(0, 0, 0.45f, 0.55f), new Vector2(0, 0), new Vector2(240, 380), 140);
+        player.ThrowButton = touch.AddButton("THROW", new Vector2(1, 0), new Vector2(-195, 380), 130, new Color(1f, 0.80f, 0.16f), 44);
         NewRound();
     }
 
@@ -429,6 +435,8 @@ public class SpearDropGame : MonoBehaviour
         bool aiming = player.mode == SpearThrower.Mode.Aim && !busy && !roundOver;
         hud.hintTarget = aiming && !player.charging && slow > 0.98f ? 1f : 0f;
         hud.powerTarget = player.charging ? 1f : 0f;
+        touch.hidden = player.botDriven;
+        player.ThrowButton.visible = aiming && player.held != null && player.canThrow;
         hud.SetPower(player.charge);
     }
 

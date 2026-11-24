@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using GameTouch;
 
 // First-person thrower: mouse/stick look, WASD walk, hold to raise and pull the spear back, release to throw.
 // After the throw the camera turns to follow the spear and narrows its view as it flies away.
@@ -21,6 +22,7 @@ public class SpearThrower : MonoBehaviour
     public bool hasFollowPoint;
     public System.Action<Spear> onThrow;
     public bool canThrow = true;
+    public TouchPad.Button ThrowButton;   // on-screen hold-to-throw for phones
 
     public const float MinSpeed = 16f, MaxSpeed = 34f;
     public static float SpeedFor(float c) => Mathf.Lerp(MinSpeed, MaxSpeed, c);
@@ -92,7 +94,7 @@ public class SpearThrower : MonoBehaviour
         fire = new InputAction("Throw", InputActionType.Button, "<Mouse>/leftButton");
         fire.AddBinding("<Keyboard>/space");
         fire.AddBinding("<Gamepad>/rightTrigger");
-        fire.AddBinding("<Touchscreen>/primaryTouch/press");
+        // touch goes through TouchPad (stick, look drag and the THROW button), so a finger that walks or looks never throws
         restart = new InputAction("Restart", InputActionType.Button, "<Keyboard>/r");
         move.Enable(); look.Enable(); padLook.Enable(); fire.Enable(); restart.Enable();
     }
@@ -129,28 +131,38 @@ public class SpearThrower : MonoBehaviour
         float rdt = SpearKit.RealDt;
         if (mode == Mode.Aim && !botDriven)
         {
-            var m = Mouse.current;
+            bool recentTouch = TouchPad.RecentTouch; // ignore mouse events a browser emulates from taps
+            var m = recentTouch ? null : Mouse.current;
             if (m != null && m.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
                 Cursor.lockState = CursorLockMode.Locked;
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) Cursor.lockState = CursorLockMode.None;
-            if (Cursor.lockState == CursorLockMode.Locked)
+            if (Cursor.lockState == CursorLockMode.Locked && !recentTouch)
             {
                 var d = look.ReadValue<Vector2>() * 0.09f;
                 yaw += d.x; pitch -= d.y;
             }
             var pd = padLook.ReadValue<Vector2>() * 140f * rdt;
             yaw += pd.x; pitch -= pd.y;
+            var tp = TouchPad.I;
+            if (tp != null && tp.Dragging)
+            {
+                // a drag across the screen width turns about 100 degrees
+                var td = tp.DragDelta / Mathf.Max(1f, Screen.width) * 100f * (cam.fieldOfView / baseFov);
+                yaw += td.x; pitch -= td.y;
+            }
             pitch = Mathf.Clamp(pitch, -70f, 70f);
             ApplyLook();
 
             var mv = move.ReadValue<Vector2>();
+            if (tp != null && tp.StickHeld) mv = Vector2.ClampMagnitude(mv + tp.Stick, 1f);
             var wish = (transform.right * mv.x + transform.forward * mv.y) * 4.5f;
             vy = cc.isGrounded ? -1f : vy + Physics.gravity.y * Time.deltaTime;
             cc.Move((wish + Vector3.up * vy) * Time.deltaTime);
 
             if (held != null && canThrow)
             {
-                if (fire.IsPressed()) { charging = true; charge = Mathf.Min(1f, charge + rdt / 0.7f); }
+                bool touchFire = ThrowButton != null && (ThrowButton.held || ThrowButton.pressed);
+                if ((fire.IsPressed() && !recentTouch) || touchFire) { charging = true; charge = Mathf.Min(1f, charge + rdt / 0.7f); }
                 else if (charging) Release(null);
             }
         }
